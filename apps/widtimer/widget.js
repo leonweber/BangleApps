@@ -5,7 +5,7 @@
  * Features double-swipe unlock mechanism, visual feedback, and adaptive refresh rates.
  * 
  * @author Claude AI Assistant
- * @version 0.03
+ * @version 0.02
  */
 (() => {
   "use strict";
@@ -28,7 +28,7 @@
   const BUZZ_TOTAL_TIME = 5000; // 5 seconds total
   
   /** Gesture control constants */
-  const UNLOCK_GESTURE_TIMEOUT = 1500; // milliseconds before unlock gesture has to be started from scratcb
+  const UNLOCK_GESTURE_TIMEOUT = 1500; // milliseconds before unlock gesture has to be started from scratch
   const UNLOCK_CONTROL_TIMEOUT = 5000; // milliseconds before gesture control locks again 
   const DIRECTION_LEFT = "left";
   const DIRECTION_RIGHT = "right";
@@ -45,6 +45,7 @@
   var settings;
   var interval = 0;
   var remainingTime = 0; // in seconds
+  var saveSettingsTimer = 0;
 
   // =============================================================================
   // UTILITY FUNCTIONS
@@ -70,6 +71,17 @@
    */
   function saveSettings() {
     require('Storage').writeJSON('widtimer.json', settings);
+  }
+
+  /**
+   * Debounced save — coalesces rapid adjustments into a single write
+   */
+  function saveSettingsDebounced() {
+    if (saveSettingsTimer) clearTimeout(saveSettingsTimer);
+    saveSettingsTimer = setTimeout(function() {
+      saveSettingsTimer = 0;
+      saveSettings();
+    }, 500);
   }
 
   /**
@@ -178,19 +190,17 @@
           clearInterval(interval);
           interval = 0;
         }
-        // Provide feedback if timer finished due to negative adjustment
-        if (remainingTime === 0) {
-          buzzMultiple();
-        }
+        buzzMultiple();
+        saveSettings(); // persist running=false immediately
+      } else {
+        saveSettingsDebounced();
       }
     } else {
       // Adjust stopped timer
       settings.totalTime = Math.max(0, settings.totalTime + seconds);
       remainingTime = settings.totalTime;
-
+      saveSettingsDebounced();
     }
-
-    saveSettings();
     WIDGETS["widtimer"].draw();
   }
 
@@ -203,11 +213,15 @@
   var lastSwipeTime = 0;
   var lastSwipeDirection = null;
   var isControlLocked = true;
+  var resetUnlockTimer = 0;
 
   /**
    * Reset gesture controls to locked state
    */
   function resetUnlock() {
+    resetUnlockTimer = 0;
+    lastSwipeDirection = null;
+    lastSwipeTime = 0;
     isControlLocked = true;
     WIDGETS["widtimer"].draw();
   }
@@ -284,7 +298,8 @@
               }
 
               // Auto-lock after `UNLOCK_CONTROL_TIMEOUT` seconds of inactivity
-              setTimeout(resetUnlock, UNLOCK_CONTROL_TIMEOUT);
+              if (resetUnlockTimer) clearTimeout(resetUnlockTimer);
+              resetUnlockTimer = setTimeout(resetUnlock, UNLOCK_CONTROL_TIMEOUT);
             }
 
             // Update gesture tracking state

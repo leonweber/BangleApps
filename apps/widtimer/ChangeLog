@@ -1,1 +1,2 @@
 0.01: Official release
+0.02: Fix dead condition in adjustTimer; fix multiple resetUnlock timers accumulating; debounce storage writes on time adjustment; clear stale gesture state on auto-lock
